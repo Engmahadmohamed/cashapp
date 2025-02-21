@@ -41,7 +41,7 @@ function showToast(message, type = "info", duration = 2000) {
 
 // Authentication Functions
 function checkAuthState() {
-    const storedUser = localStorage.getItem("username");
+    const storedUser = sessionStorage.getItem("currentUser");
     if (storedUser) {
         currentUser = storedUser;
         loadUserData();
@@ -52,29 +52,6 @@ function checkAuthState() {
     } else {
         document.getElementById("authScreen").style.display = "block";
         document.getElementById("navScreen").style.display = "none";
-    }
-}
-
-// Initialize user data in Firebase
-async function initializeUserData(phoneNumber) {
-    const userRef = dbRef(db, `users/${phoneNumber}`);
-    const snapshot = await dbGet(userRef);
-    
-    if (!snapshot.exists()) {
-        await dbSet(userRef, {
-            phoneNumber,
-            balance: 0,
-            adsWatched: 0,
-            todayEarnings: 0,
-            totalEarned: 0,
-            referralCount: 0,
-            referralCode: generateReferralCode(),
-            lastAdWatch: null,
-            contactInfo: document.getElementById('contactInput').value || '',
-            joinDate: new Date().toISOString(),
-            isActive: true,
-            hasJoinedChannel: false
-        });
     }
 }
 
@@ -89,12 +66,10 @@ async function login() {
     showLoading();
     
     try {
+        // First sign in anonymously
         await window.signInAnonymously(auth);
 
-        // Check for referral code in URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const referralCode = urlParams.get('start');
-
+        // Then create/get user data
         const userRef = dbRef(db, `users/${phoneNumber}`);
         const userSnapshot = await dbGet(userRef);
         
@@ -108,105 +83,50 @@ async function login() {
                 totalEarned: 0,
                 referralCount: 0,
                 referralCode: generateReferralCode(),
-                referredBy: referralCode || null,  // Store referrer's code
-                referredUsers: [],  // Array to store referred users
                 lastAdWatch: null,
                 contactInfo: document.getElementById('contactInput').value || '',
                 joinDate: new Date().toISOString(),
                 isActive: true,
                 hasJoinedChannel: false
             });
-
-            // Process referral if exists
-            if (referralCode) {
-                // Find referrer by referral code
-                const usersRef = dbRef(db, 'users');
-                const usersSnapshot = await dbGet(usersRef);
-                const users = usersSnapshot.val();
-                
-                // Find user with matching referral code
-                const referrer = Object.entries(users).find(([_, userData]) => userData.referralCode === referralCode);
-                
-                if (referrer && referrer[0] !== phoneNumber) {
-                    const [referrerId, referrerData] = referrer;
-                    
-                    // Check referral limit
-                    if (referrerData.referralCount < 5) {
-                        // Update referrer's data
-                        const referrerRef = dbRef(db, `users/${referrerId}`);
-                        await dbUpdate(referrerRef, {
-                            balance: (referrerData.balance || 0) + 0.05,
-                            referralCount: (referrerData.referralCount || 0) + 1,
-                            totalEarned: (referrerData.totalEarned || 0) + 0.05,
-                            referredUsers: [...(referrerData.referredUsers || []), phoneNumber]
-                        });
-
-                        // Add to referrer's history
-                        const referrerHistoryRef = dbRef(db, `history/${referrerId}`);
-                        await dbPush(referrerHistoryRef, {
-                            type: 'referral',
-                            amount: 0.05,
-                            referredUser: phoneNumber,
-                            timestamp: Date.now()
-                        });
-                        
-                        showToast('Welcome! You were referred by a user', 'success');
-                    }
-                }
-            }
         }
+
+        // Set current user
+        currentUser = phoneNumber;
+        sessionStorage.setItem('currentUser', phoneNumber);
+
+        // Show home screen immediately
+        document.getElementById('authScreen').style.display = 'none';
+        document.getElementById('navScreen').style.display = 'block';
+        showScreen('homeScreen');
+
+        // Show success message
+        showToast('Login successful!', 'success');
+
+        // Load data in background
+        await loadUserData();
+
+        // Check if user needs to join channel
+        const userData = userSnapshot.val();
+        if (!userData?.hasJoinedChannel) {
+            document.getElementById('channelJoinModal').style.display = 'flex';
+        }
+
     } catch (error) {
         console.error('Login error:', error);
         showToast('Login failed. Please try again.', 'error');
         currentUser = null;
-        localStorage.removeItem('currentUser');
+        sessionStorage.removeItem('currentUser');
     } finally {
         hideLoading();
     }
 }
 
-// Update initialization to handle auth state
-document.addEventListener('DOMContentLoaded', () => {
-    // Set up auth state listener
-    window.onAuthStateChanged(auth, async (user) => {
-        console.log("Auth state changed", user);
-        const savedUser = localStorage.getItem('currentUser');
-        
-        if (user && savedUser) {
-            // User is signed in
-            currentUser = savedUser;
-            try {
-                await loadUserData();
-                document.getElementById('authScreen').style.display = 'none';
-                document.getElementById('navScreen').style.display = 'block';
-                showScreen('homeScreen');
-            } catch (error) {
-                console.error('Error loading user data:', error);
-                showToast('Error loading user data', 'error');
-                // Clear stored data if there's an error
-                localStorage.removeItem('currentUser');
-                localStorage.removeItem('authUID');
-                // Show auth screen
-                document.getElementById('authScreen').style.display = 'block';
-                document.getElementById('navScreen').style.display = 'none';
-            }
-        } else {
-            // No user is signed in
-            currentUser = null;
-            document.getElementById('authScreen').style.display = 'block';
-            document.getElementById('navScreen').style.display = 'none';
-            localStorage.removeItem('currentUser');
-            localStorage.removeItem('authUID');
-        }
-    });
-});
-
 // Update logout function
 function logout() {
     auth.signOut().then(() => {
-    currentUser = null;
-        localStorage.removeItem('currentUser');
-        localStorage.removeItem('authUID');
+        currentUser = null;
+        sessionStorage.removeItem('currentUser');
         document.getElementById('authScreen').style.display = 'block';
         document.getElementById('navScreen').style.display = 'none';
         showToast('Logged out successfully', 'success');
