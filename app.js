@@ -89,10 +89,12 @@ async function login() {
     showLoading();
     
     try {
-        // First sign in anonymously
         await window.signInAnonymously(auth);
 
-        // Then create/get user data
+        // Check for referral code in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const referralCode = urlParams.get('start');
+
         const userRef = dbRef(db, `users/${phoneNumber}`);
         const userSnapshot = await dbGet(userRef);
         
@@ -100,41 +102,59 @@ async function login() {
             // Create new user data
             await dbSet(userRef, {
                 phoneNumber,
-        balance: 0,
-        adsWatched: 0,
+                balance: 0,
+                adsWatched: 0,
                 todayEarnings: 0,
                 totalEarned: 0,
                 referralCount: 0,
                 referralCode: generateReferralCode(),
+                referredBy: referralCode || null,  // Store referrer's code
+                referredUsers: [],  // Array to store referred users
                 lastAdWatch: null,
                 contactInfo: document.getElementById('contactInput').value || '',
-        joinDate: new Date().toISOString(),
+                joinDate: new Date().toISOString(),
                 isActive: true,
                 hasJoinedChannel: false
             });
-        }
 
-        // Set current user
-        currentUser = phoneNumber;
-        localStorage.setItem('currentUser', phoneNumber);
+            // Process referral if exists
+            if (referralCode) {
+                // Find referrer by referral code
+                const usersRef = dbRef(db, 'users');
+                const usersSnapshot = await dbGet(usersRef);
+                const users = usersSnapshot.val();
+                
+                // Find user with matching referral code
+                const referrer = Object.entries(users).find(([_, userData]) => userData.referralCode === referralCode);
+                
+                if (referrer && referrer[0] !== phoneNumber) {
+                    const [referrerId, referrerData] = referrer;
+                    
+                    // Check referral limit
+                    if (referrerData.referralCount < 5) {
+                        // Update referrer's data
+                        const referrerRef = dbRef(db, `users/${referrerId}`);
+                        await dbUpdate(referrerRef, {
+                            balance: (referrerData.balance || 0) + 0.05,
+                            referralCount: (referrerData.referralCount || 0) + 1,
+                            totalEarned: (referrerData.totalEarned || 0) + 0.05,
+                            referredUsers: [...(referrerData.referredUsers || []), phoneNumber]
+                        });
 
-        // Show home screen immediately
-        document.getElementById('authScreen').style.display = 'none';
-        document.getElementById('navScreen').style.display = 'block';
-        showScreen('homeScreen');
-
-        // Show success message
-        showToast('Login successful!', 'success');
-
-        // Load data in background
-        loadUserData().then(() => {
-            // Show channel join modal if needed
-            const userData = userSnapshot.val();
-            if (!userData?.hasJoinedChannel) {
-                document.getElementById('channelJoinModal').style.display = 'flex';
+                        // Add to referrer's history
+                        const referrerHistoryRef = dbRef(db, `history/${referrerId}`);
+                        await dbPush(referrerHistoryRef, {
+                            type: 'referral',
+                            amount: 0.05,
+                            referredUser: phoneNumber,
+                            timestamp: Date.now()
+                        });
+                        
+                        showToast('Welcome! You were referred by a user', 'success');
+                    }
+                }
             }
-        });
-
+        }
     } catch (error) {
         console.error('Login error:', error);
         showToast('Login failed. Please try again.', 'error');
@@ -296,7 +316,7 @@ async function loadHistory() {
                     <div class="history-time">${new Date(item.timestamp).toLocaleString()}</div>
                 </div>
                 <div class="history-amount ${item.type === 'ad' ? 'earn' : 'withdraw'}">
-                    ${item.type === 'ad' ? '+' : '-'}$${Math.abs(item.amount).toFixed(2)}
+                    ${item.type === 'ad' ? '+' : '-'}${Math.abs(item.amount).toFixed(2)}
                 </div>
             `;
             fragment.appendChild(historyItem);
