@@ -363,9 +363,10 @@ async function watchAd() {
     const lastAdTime = userData.lastAdWatch ? new Date(userData.lastAdWatch) : null;
     const now = new Date();
     
-    if (lastAdTime && (now - lastAdTime) < 30000) { // 30 seconds cooldown
+    // Check cooldown (changed from 30000 to 1000 milliseconds)
+    if (lastAdTime && (now - lastAdTime) < 1000) { // 1 second cooldown
         hideLoading();
-        showToast('Please wait 30 seconds between ads', 'warning');
+        showToast('Please wait 1 second between ads', 'warning');
         return;
     }
 
