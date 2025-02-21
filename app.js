@@ -418,25 +418,25 @@ function updateAdCooldown() {
         const userData = snapshot.val();
         if (!userData) return;
 
-    const lastAdTime = userData.lastAdWatch ? new Date(userData.lastAdWatch) : null;
-    const now = new Date();
-    
-    if (lastAdTime && (now - lastAdTime) < 30000) {
-        const remainingTime = Math.ceil((30000 - (now - lastAdTime)) / 1000);
-        watchAdBtn.disabled = true;
-        watchAdBtn.innerHTML = `
-            <i class="fas fa-clock"></i>
-            Wait ${remainingTime}s
-            <small>Cooldown</small>
-        `;
-    } else {
-        watchAdBtn.disabled = false;
-        watchAdBtn.innerHTML = `
-            <i class="fas fa-play"></i>
-            Watch Ad
-            <small>Earn $0.01 per ad</small>
-        `;
-    }
+        const lastAdTime = userData.lastAdWatch ? new Date(userData.lastAdWatch) : null;
+        const now = new Date();
+        
+        if (lastAdTime && (now - lastAdTime) < 1000) { // Changed from 30000 to 1000
+            const remainingTime = Math.ceil((1000 - (now - lastAdTime)) / 1000);
+            watchAdBtn.disabled = true;
+            watchAdBtn.innerHTML = `
+                <i class="fas fa-clock"></i>
+                Wait ${remainingTime}s
+                <small>Cooldown</small>
+            `;
+        } else {
+            watchAdBtn.disabled = false;
+            watchAdBtn.innerHTML = `
+                <i class="fas fa-play"></i>
+                Watch Ad
+                <small>Earn $0.01 per ad</small>
+            `;
+        }
     });
 }
 
