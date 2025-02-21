@@ -398,9 +398,83 @@ function showScreen(screenId) {
     });
 }
 
-// Withdraw Functions
+// Withdraw Function// Show withdraw modal with balance check
 function showWithdrawModal() {
-    document.getElementById("withdrawModal").style.display = "flex";
+    const currentBalance = parseFloat(document.getElementById('balance').textContent.replace('$', ''));
+    
+    if (currentBalance < 5) {
+        showToast('Insufficient balance. Minimum withdrawal is $5.00', 'error');
+        return;
+    }
+    
+    document.getElementById('withdrawModal').style.display = 'flex';
+    selectPayment('evc');
+}
+
+// Process withdrawal with balance validation
+async function processWithdraw() {
+    const amount = parseFloat(document.getElementById('withdrawAmount').value);
+    const phoneNumber = document.getElementById('phoneNumber').value;
+    
+    if (!phoneNumber) {
+        showToast('Please enter mobile number', 'error');
+        return;
+    }
+    
+    // Get latest balance from Firebase
+    const userRef = dbRef(db, `users/${currentUser}`);
+    const snapshot = await dbGet(userRef);
+    const userData = snapshot.val();
+    const currentBalance = userData.balance || 0;
+
+    // Check for insufficient balance
+    if (currentBalance < 5) {
+        showToast('Insufficient balance', 'error');
+        closeWithdrawModal();
+        return;
+    }
+    
+    if (amount < 5) {
+        showToast('Minimum withdrawal amount is $5.00', 'error');
+        return;
+    }
+    
+    if (amount > currentBalance) {
+        showToast('Insufficient balance', 'error');
+        return;
+    }
+    
+    try {
+        // Rest of the withdrawal process...
+        const withdrawalRef = dbRef(db, `withdrawals/${currentUser}`);
+        await dbPush(withdrawalRef, {
+            amount: amount,
+            phoneNumber: phoneNumber,
+            paymentMethod: document.querySelector('.payment-option.active').dataset.method,
+            status: 'pending',
+            timestamp: Date.now()
+        });
+        
+        // Update user balance
+        await dbUpdate(userRef, {
+            balance: currentBalance - amount
+        });
+        
+        // Add to history
+        const historyRef = dbRef(db, `history/${currentUser}`);
+        await dbPush(historyRef, {
+            type: 'withdraw',
+            amount: -amount,
+            timestamp: Date.now()
+        });
+        
+        await loadUserData();
+        closeWithdrawModal();
+        showToast('Withdrawal request submitted successfully', 'success');
+    } catch (error) {
+        console.error('Withdrawal error:', error);
+        showToast('Error processing withdrawal. Please try again.', 'error');
+    }
 }
 
 function closeWithdrawModal() {
@@ -410,10 +484,16 @@ function closeWithdrawModal() {
 // Process withdrawal
 async function processWithdraw() {
     const amount = parseFloat(document.getElementById('withdrawAmount').value);
-    const evcNumber = document.getElementById('evcNumber').value;
+    const phoneNumber = document.getElementById('phoneNumber').value;
+    const paymentMethod = document.getElementById('paymentMethod').value;
     
-    if (!evcNumber) {
-        showToast('Please enter EVC Plus number', 'error');
+    if (!phoneNumber) {
+        showToast('Please enter mobile number', 'error');
+        return;
+    }
+    
+    if (amount < 5) {
+        showToast('Minimum withdrawal amount is $5.00', 'error');
         return;
     }
     
@@ -426,16 +506,12 @@ async function processWithdraw() {
         return;
     }
     
-    if (amount < 5) {
-        showToast('Minimum withdrawal amount is $5.00', 'error');
-        return;
-    }
-    
     // Create withdrawal request
     const withdrawalRef = dbRef(db, `withdrawals/${currentUser}`);
     await dbPush(withdrawalRef, {
         amount: amount,
-        evcNumber: evcNumber,
+        phoneNumber: phoneNumber,
+        paymentMethod: paymentMethod,
         status: 'pending',
         timestamp: Date.now()
     });
@@ -661,4 +737,70 @@ function updateReferralProgress(referralCount) {
         // Update current referrals text
         currentReferrals.textContent = referralCount;
     }
+}
+function selectPayment(method) {
+    // Remove active class from all options
+    document.querySelectorAll('.payment-option').forEach(option => {
+        option.classList.remove('active');
+    });
+    
+    // Add active class to selected option
+    document.querySelector(`[data-method="${method}"]`).classList.add('active');
+    
+    // Update phone label and placeholder based on selected method
+    const phoneLabel = document.querySelector('label[for="phoneNumber"]');
+    const phoneInput = document.getElementById('phoneNumber');
+    
+    const methodInfo = {
+        'evc': 'EVC Plus',
+        'zaad': 'ZAAD',
+        'sahal': 'Sahal',
+        'waafi': 'Waafi'
+    };
+    
+    const selectedMethod = methodInfo[method];
+    phoneLabel.textContent = `${selectedMethod} Number`;
+    phoneInput.placeholder = `Enter ${selectedMethod} number`;
+}
+
+// Initialize first payment option as active when modal opens
+function showWithdrawModal() {
+    document.getElementById('withdrawModal').style.display = 'flex';
+    selectPayment('evc');
+}
+
+
+
+function showError(message) {
+    const errorModal = document.getElementById('errorModal');
+    const errorMessage = document.getElementById('errorMessage');
+    errorMessage.textContent = message;
+    errorModal.style.display = 'flex';
+    
+    setTimeout(() => {
+        errorModal.style.display = 'none';
+    }, 3000);
+}
+
+async function processWithdraw() {
+    const amount = parseFloat(document.getElementById('withdrawAmount').value);
+    const phoneNumber = document.getElementById('phoneNumber').value;
+    
+    if (!phoneNumber) {
+        showError('Please enter mobile number');
+        return;
+    }
+    
+    const userRef = dbRef(db, `users/${currentUser}`);
+    const snapshot = await dbGet(userRef);
+    const userData = snapshot.val();
+    const currentBalance = userData.balance || 0;
+
+    if (currentBalance < 5) {
+        showError('Insufficient balance');
+        closeWithdrawModal();
+        return;
+    }
+    
+    // ... rest of your withdrawal process code
 }
