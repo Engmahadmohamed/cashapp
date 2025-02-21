@@ -135,10 +135,10 @@
           <div class="referral-header">
             <i class="fas fa-gift"></i>
             <h2>Invite Friends</h2>
-            <p>Earn $0.05 for each referral (Max 5)</p>
+            <p>Earn $<span id="referralReward">0.05</span> for each referral (Max <span id="maxReferrals">5</span>)</p>
             <div class="referral-progress">
               <div class="progress-text">
-                <span>Referrals: <strong id="currentReferrals">0</strong>/5</span>
+                <span>Referrals: <strong id="currentReferrals">0</strong>/<span id="totalMaxReferrals">5</span></span>
               </div>
               <div class="progress-bar">
                 <div class="progress-fill" id="referralProgress"></div>
@@ -279,4 +279,4 @@
   </script>
   <script src="app.js"></script>
 </body>
-</html> 
+</html>

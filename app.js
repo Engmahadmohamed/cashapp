@@ -203,7 +203,7 @@ async function loadUserData() {
     try {
         const userRef = dbRef(db, `users/${currentUser}`);
         const snapshot = await dbGet(userRef);
-        const userData = snapshot.val();
+        userData = snapshot.val(); // Store userData globally
 
         if (!userData) {
             showToast('User data not found', 'error');
@@ -225,6 +225,12 @@ async function loadUserData() {
             const element = document.getElementById(id);
             if (element) element.textContent = value;
         });
+
+        // Update referral link
+        const referralLink = document.getElementById("referralLink");
+        if (referralLink && userData.referralCode) {
+            referralLink.value = `https://t.me/Ad_Cashbot?start=${userData.referralCode}`;
+        }
 
         // Update other UI elements
         updateReferralProgress(userData.referralCount);
@@ -308,7 +314,11 @@ function updateUI() {
     document.getElementById("todayEarnings").textContent = `$${(userData.todayEarnings || 0).toFixed(2)}`;
     updateAdCooldown();
     updateHistory();
-    document.getElementById("referralLink").textContent = "https://t.me/Ad_Cashbot?start=" + encodeURIComponent(currentUser);
+    // Update referral link with value instead of textContent
+    const referralLink = document.getElementById("referralLink");
+    if (referralLink && userData && userData.referralCode) {
+        referralLink.value = `https://t.me/Ad_Cashbot?start=${userData.referralCode}`;
+    }
     document.getElementById("profileUsername").textContent = currentUser;
     updateReferralLink();
     updateReferralStats();
@@ -529,10 +539,10 @@ document.getElementById("withdrawAmount").addEventListener('input', validateWith
 function updateReferralLink() {
     const referralLink = document.getElementById("referralLink");
     
-    if (referralLink) {
-    // Use Telegram bot link with user's referral code
-        const telegramBotLink = `https://t.me/Ad_Cashbot?start=${currentUser}`;
-    referralLink.value = telegramBotLink;
+    if (referralLink && userData) {
+        // Use Telegram bot link with user's unique referral code instead of phone number
+        const telegramBotLink = `https://t.me/Ad_Cashbot?start=${userData.referralCode}`;
+        referralLink.value = telegramBotLink;
     }
 }
 
@@ -541,11 +551,8 @@ function copyReferral() {
     referralLink.select();
     document.execCommand('copy');
     
-    // Show success toast
-    showToast({
-        message: "Referral link copied!",
-        type: "success"
-    });
+    // Fix the toast message format
+    showToast("Referral link copied!", "success");
 }
 
 function shareOnTelegram() {
@@ -713,4 +720,4 @@ function updateReferralProgress(referralCount) {
         // Update current referrals text
         currentReferrals.textContent = referralCount;
     }
-} 
+}
