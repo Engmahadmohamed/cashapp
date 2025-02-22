@@ -802,5 +802,31 @@ async function processWithdraw() {
         return;
     }
     
-    // ... rest of your withdrawal process code
+    if (isNaN(amount) || amount < 5) {
+        showError('Minimum withdrawal amount is $5.00');
+        return;
+    }
+    
+    if (amount > currentBalance) {
+        showError('Withdrawal amount cannot exceed your balance');
+        return;
+    }
+    
+    // Deduct the amount from user's balance
+    await dbUpdate(userRef, {
+        balance: currentBalance - amount
+    });
+
+    // Create withdrawal request
+    const withdrawalRef = dbRef(db, `withdrawals/${currentUser}/${Date.now()}`);
+    await dbSet(withdrawalRef, {
+        amount: amount,
+        evcNumber: phoneNumber,
+        status: 'pending',
+        timestamp: Date.now()
+    });
+    
+    await loadUserData();
+    closeWithdrawModal();
+    showToast('Withdrawal request submitted successfully', 'success');
 }
