@@ -169,7 +169,7 @@ async function loadUserData() {
         // Update referral link
         const referralLink = document.getElementById("referralLink");
         if (referralLink && userData.referralCode) {
-            referralLink.value = `https://t.me/Ad_Cashbot?start=${userData.referralCode}`;
+            referralLink.value = `https://cashapp-mu.vercel.app?start=${userData.referralCode}`;
         }
 
         // Update other UI elements
